@@ -50,6 +50,7 @@ class WMATICTASwapRSIStrategy(IntentStrategy):
         self.protocol = str(self.get_config("protocol", "uniswap_v3"))
         self.base_token = str(self.get_config("base_token", "WMATIC"))
         self.quote_token = str(self.get_config("quote_token", "USDC"))
+        self.rsi_token = str(self.get_config("rsi_token", self.base_token))
 
         self.rsi_period = int(self.get_config("rsi_period", 14))
         self.rsi_timeframe = str(self.get_config("rsi_timeframe", "5m"))
@@ -110,7 +111,7 @@ class WMATICTASwapRSIStrategy(IntentStrategy):
             return Intent.hold(reason="Waiting for confirmed 5m candle close")
 
         try:
-            rsi = market.rsi(self.base_token, period=self.rsi_period, timeframe=self.rsi_timeframe)
+            rsi = market.rsi(self.rsi_token, period=self.rsi_period, timeframe=self.rsi_timeframe)
         except (RSIUnavailableError, ValueError):
             self.last_processed_candle_id = candle_id
             return Intent.hold(reason="RSI data unavailable")

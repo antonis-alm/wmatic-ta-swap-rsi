@@ -77,6 +77,14 @@ def test_cross_above_upper_flips_to_wmatic(strategy: WMATICTASwapRSIStrategy):
     assert intent.to_token == "WMATIC"
 
 
+def test_rsi_uses_configured_indicator_token(strategy: WMATICTASwapRSIStrategy):
+    market = _market(timestamp=datetime(2026, 1, 1, 0, 0, tzinfo=UTC), rsi_value=Decimal("50"))
+
+    strategy.decide(market)
+
+    market.rsi.assert_called_once_with("POL", period=14, timeframe="5m")
+
+
 def test_cross_below_lower_flips_to_usdc(strategy: WMATICTASwapRSIStrategy):
     strategy.position_state = LONG_WMATIC
     strategy.prev_rsi = Decimal("46")
