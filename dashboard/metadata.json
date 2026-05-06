@@ -1,0 +1,5 @@
+{
+  "display_name": "WMATIC TA Swap RSI",
+  "description": "RSI regime-flip dashboard for WMATIC/USDC swaps on Polygon Uniswap V3.",
+  "icon": "📈"
+}
