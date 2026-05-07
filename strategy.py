@@ -9,10 +9,10 @@ from typing import Any
 from almanak.framework.data.market_snapshot import (
     BalanceUnavailableError,
     GasUnavailableError,
+    OHLCVUnavailableError,
     PoolPriceUnavailableError,
     PoolReservesUnavailableError,
     PriceUnavailableError,
-    RSIUnavailableError,
     SlippageEstimateUnavailableError,
 )
 from almanak.framework.intents import Intent
@@ -111,12 +111,11 @@ class WMATICTASwapRSIStrategy(IntentStrategy):
             return Intent.hold(reason="Waiting for confirmed 5m candle close")
 
         try:
-            rsi = market.rsi(self.rsi_token, period=self.rsi_period, timeframe=self.rsi_timeframe)
-        except (RSIUnavailableError, ValueError):
+            current_rsi = self._get_rsi_value(market)
+        except (OHLCVUnavailableError, ValueError):
             self.last_processed_candle_id = candle_id
             return Intent.hold(reason="RSI data unavailable")
 
-        current_rsi = Decimal(str(rsi.value))
         signal = self._compute_signal(current_rsi)
         self.last_processed_candle_id = candle_id
 
@@ -181,6 +180,46 @@ class WMATICTASwapRSIStrategy(IntentStrategy):
             protocol=self.protocol,
             chain=self.chain,
         )
+
+    def _get_rsi_value(self, market: MarketSnapshot) -> Decimal:
+        candles = market.ohlcv(
+            token=self.rsi_token,
+            timeframe=self.rsi_timeframe,
+            limit=self.rsi_period + 20,
+            quote=self.quote_token,
+            pool_address=self.target_pool_address,
+        )
+        close_series = candles["close"]
+        close_values = close_series.dropna().tolist() if hasattr(close_series, "dropna") else list(close_series)
+        closes = [float(value) for value in close_values]
+        rsi_value = self._calculate_rsi_from_closes(closes, self.rsi_period)
+        return Decimal(str(rsi_value))
+
+    @staticmethod
+    def _calculate_rsi_from_closes(closes: list[float], period: int) -> float:
+        if period <= 0:
+            raise ValueError("RSI period must be positive")
+        if len(closes) < period + 1:
+            raise ValueError("Insufficient OHLCV data for RSI calculation")
+
+        gains: list[float] = []
+        losses: list[float] = []
+        for i in range(1, len(closes)):
+            change = closes[i] - closes[i - 1]
+            gains.append(change if change > 0 else 0.0)
+            losses.append(-change if change < 0 else 0.0)
+
+        avg_gain = sum(gains[:period]) / period
+        avg_loss = sum(losses[:period]) / period
+
+        for i in range(period, len(gains)):
+            avg_gain = ((avg_gain * (period - 1)) + gains[i]) / period
+            avg_loss = ((avg_loss * (period - 1)) + losses[i]) / period
+
+        if avg_loss == 0:
+            return 100.0
+        rs = avg_gain / avg_loss
+        return 100.0 - (100.0 / (1.0 + rs))
 
     def _compute_signal(self, current_rsi: Decimal) -> RegimeSignal:
         if self.prev_rsi is None:

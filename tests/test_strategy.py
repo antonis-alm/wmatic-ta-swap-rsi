@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pandas as pd
 import pytest
 
 from almanak.framework.strategies import RSIData, TokenBalance
@@ -27,6 +28,18 @@ def strategy(config: dict) -> WMATICTASwapRSIStrategy:
         chain="polygon",
         wallet_address="0x" + "1" * 40,
     )
+
+
+def _ohlcv_from_rsi(rsi_value: Decimal, period: int = 14) -> pd.DataFrame:
+    rsi_float = float(rsi_value)
+    ratio = rsi_float / (100.0 - rsi_float)
+    diffs = [ratio, -1.0] + [0.0] * (period - 2)
+    closes = [100.0]
+    for diff in diffs:
+        closes.append(closes[-1] + diff)
+
+    rows = [{"close": close} for close in closes]
+    return pd.DataFrame(rows)
 
 
 def _market(
@@ -58,6 +71,7 @@ def _market(
 
     market.balance.side_effect = _balance
     market.rsi.return_value = RSIData(value=rsi_value, period=14)
+    market.ohlcv.return_value = _ohlcv_from_rsi(rsi_value)
     market.pool_price_by_pair.return_value = SimpleNamespace(value=SimpleNamespace(price=Decimal("1")))
     market.pool_reserves.return_value = SimpleNamespace(fee_tier=fee_tier, liquidity=liquidity)
     market.estimate_slippage.return_value = SimpleNamespace(effective_slippage_bps=slippage_bps)
@@ -82,7 +96,13 @@ def test_rsi_uses_configured_indicator_token(strategy: WMATICTASwapRSIStrategy):
 
     strategy.decide(market)
 
-    market.rsi.assert_called_once_with(strategy.rsi_token, period=14, timeframe="5m")
+    market.ohlcv.assert_called_once_with(
+        token=strategy.rsi_token,
+        timeframe="5m",
+        limit=strategy.rsi_period + 20,
+        quote=strategy.quote_token,
+        pool_address=strategy.target_pool_address,
+    )
 
 
 def test_cross_below_lower_flips_to_usdc(strategy: WMATICTASwapRSIStrategy):
