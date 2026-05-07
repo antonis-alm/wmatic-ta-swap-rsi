@@ -82,7 +82,7 @@ def test_rsi_uses_configured_indicator_token(strategy: WMATICTASwapRSIStrategy):
 
     strategy.decide(market)
 
-    market.rsi.assert_called_once_with("POL", period=14, timeframe="5m")
+    market.rsi.assert_called_once_with(strategy.rsi_token, period=14, timeframe="5m")
 
 
 def test_cross_below_lower_flips_to_usdc(strategy: WMATICTASwapRSIStrategy):
