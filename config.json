@@ -3,7 +3,7 @@
     "protocol": "uniswap_v3",
     "base_token": "WMATIC",
     "quote_token": "USDC",
-    "rsi_token": "MATIC",
+    "rsi_token": "WPOL",
     "rsi_period": 14,
     "rsi_timeframe": "5m",
     "rsi_lower": 45,
